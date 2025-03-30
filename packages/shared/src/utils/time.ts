@@ -10,7 +10,14 @@ export const formatDuration = (seconds: number): string => {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const remainingSeconds = seconds % 60;
-  return `${hours}h ${minutes}m ${remainingSeconds}s`;
+
+  if (seconds < 60) {
+    return `${remainingSeconds}s`;
+  } else if (seconds < 3600) {
+    return `${minutes}m ${remainingSeconds}s`;
+  } else {
+    return `${hours}h ${minutes}m ${remainingSeconds}s`;
+  }
 };
 
 export const formatDateTime = (dateString: string | Date): string => {

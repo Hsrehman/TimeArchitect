@@ -477,9 +477,9 @@ app.get('/api/settings/:key', async (req, res) => {
     const setting = await Settings.findOne({ key });
     
     if (!setting) {
-      return res.status(404).json({ message: 'Setting not found' });
+      return res.status(404).json({ message: `Setting '${key}' not found` });
     }
-
+    
     res.json({
       key: setting.key,
       value: setting.value,
@@ -487,7 +487,7 @@ app.get('/api/settings/:key', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching setting:', error);
-    res.status(500).json({ message: 'Failed to fetch setting' });
+    res.status(500).json({ message: 'Failed to fetch setting', error: error.message });
   }
 });
 
@@ -496,26 +496,24 @@ app.put('/api/settings/:key', async (req, res) => {
   try {
     const { key } = req.params;
     const { value } = req.body;
-
+    
     if (value === undefined) {
       return res.status(400).json({ message: 'value is required' });
     }
-
-    const setting = await Settings.findOne({ key });
+    
+    const setting = await Settings.findOneAndUpdate(
+      { key },
+      { value },
+      { new: true }
+    );
+    
     if (!setting) {
-      return res.status(404).json({ message: 'Setting not found' });
+      return res.status(404).json({ message: `Setting '${key}' not found` });
     }
-
-    setting.value = value;
-    await setting.save();
-
-    // Emit WebSocket event
-    io.emit('settingsUpdated', {
-      key,
-      value,
-      description: setting.description
-    });
-
+    
+    // Emit settings update via WebSocket
+    io.emit('settingsUpdated', { key, value });
+    
     res.json({
       key: setting.key,
       value: setting.value,
@@ -523,39 +521,55 @@ app.put('/api/settings/:key', async (req, res) => {
     });
   } catch (error) {
     console.error('Error updating setting:', error);
-    res.status(500).json({ message: 'Failed to update setting' });
+    res.status(500).json({ message: 'Failed to update setting', error: error.message });
   }
 });
 
 // Activity logging endpoint
 app.post('/api/activity', async (req, res) => {
   try {
-    const { sessionId, type, count, details } = req.body;
+    const { sessionId, type, details, timestamp } = req.body;
     
     if (!sessionId || !type) {
       return res.status(400).json({ message: 'sessionId and type are required' });
     }
-
+    
     const session = await Session.findById(sessionId);
     if (!session) {
       return res.status(404).json({ message: 'Session not found' });
     }
-
-    const activityLog = {
-      timestamp: new Date(),
+    
+    if (session.status === 'completed') {
+      return res.status(400).json({ message: 'Cannot log activity for completed session' });
+    }
+    
+    // Add activity log
+    session.activity_logs.push({
+      timestamp: timestamp ? new Date(timestamp) : new Date(),
       type,
-      details: type === 'window_switch' ? details : { count }
-    };
-
-    session.activity_logs.push(activityLog);
+      details: details || null
+    });
+    
+    // Update session status based on activity
+    if (session.status === 'pending_validation' || session.status === 'inactive') {
+      session.status = 'active';
+    }
+    
     await session.save();
-
-    res.status(200).json({
+    
+    // Emit session update via WebSocket
+    io.emit('sessionUpdated', {
+      session_id: session._id,
+      user_id: session.user_id,
+      status: session.status
+    });
+    
+    res.status(201).json({
       message: 'Activity logged successfully',
-      activity: activityLog
+      session_id: session._id
     });
   } catch (error) {
-    console.error('Activity logging error:', error);
+    console.error('Error logging activity:', error);
     res.status(500).json({ message: 'Failed to log activity', error: error.message });
   }
 });

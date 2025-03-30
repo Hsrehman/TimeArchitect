@@ -49,7 +49,7 @@ function Sessions() {
 
   const formatTimeWithHumanReadable = (seconds) => {
     if (!seconds) return 'N/A';
-    return `${formatTime(seconds)} (${formatDuration(seconds)})`;
+    return formatDuration(seconds);
   };
 
   const getGroupStatus = (sessions) => {
@@ -181,16 +181,16 @@ function Sessions() {
                     <tr key={session._id}>
                       <td>{formatDateTime(session.start_time)}</td>
                       <td>{session.end_time ? formatDateTime(session.end_time) : '-'}</td>
-                      <td>{formatTime(session.duration || 0)}</td>
+                      <td>{formatDuration(session.duration || 0)}</td>
                       <td>
                         <span className={`status-badge ${session.status}`}>
                           {session.status.charAt(0).toUpperCase() + session.status.slice(1)}
                         </span>
                       </td>
-                      <td>{formatTime(session.normal_break_duration || 0)}</td>
-                      <td>{formatTime(session.office_break_duration || 0)}</td>
-                      <td>{formatTime(session.inactive_time || 0)}</td>
-                      <td>{formatTime(session.payable_hours || 0)}</td>
+                      <td>{formatDuration(session.normal_break_duration || 0)}</td>
+                      <td>{formatDuration(session.office_break_duration || 0)}</td>
+                      <td>{formatDuration(session.inactive_time || 0)}</td>
+                      <td>{formatDuration(session.payable_hours || 0)}</td>
                     </tr>
                   ))}
                 </tbody>
