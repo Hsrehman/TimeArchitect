@@ -10,39 +10,113 @@ const SERVER_URL = 'http://localhost:3000';
 // Activity tracking state
 let currentSessionId = null;
 let isTrackingEnabled = false;
+let isOnline = true;
+let offlineQueue = [];
+let keydownListener = null;
+let mousedownListener = null;
+
+// Function to sync offline queue
+async function syncOfflineQueue() {
+  if (offlineQueue.length === 0) return;
+
+  console.log(`Attempting to sync ${offlineQueue.length} queued items`);
+  const failedItems = [];
+
+  for (const item of offlineQueue) {
+    try {
+      let response;
+      if (item.type === 'activity') {
+        // Ensure offline flag is set for queued activities
+        const activityData = {
+          ...item.data,
+          isOfflineSync: true
+        };
+        console.log('Syncing offline activity:', activityData);
+        response = await axios.post(`${SERVER_URL}/api/activity`, activityData);
+        console.log('Activity sync response:', {
+          status: response.status,
+          data: response.data
+        });
+      } else {
+        // Handle other types (clock-in/out) as before
+        console.log(`Syncing ${item.type}:`, item.data);
+        response = await axios.post(`${SERVER_URL}/api/${item.type}`, item.data);
+        console.log(`${item.type} sync response:`, {
+          status: response.status,
+          data: response.data
+        });
+      }
+    } catch (error) {
+      console.error('Failed to sync item:', item);
+      if (error.response) {
+        console.error('Server error:', {
+          status: error.response.status,
+          data: error.response.data
+        });
+      } else if (error.request) {
+        console.error('No response received:', error.request);
+      } else {
+        console.error('Error setting up request:', error.message);
+      }
+      failedItems.push(item);
+    }
+  }
+
+  // Update queue with only failed items
+  offlineQueue = failedItems;
+  console.log(`Sync complete. ${failedItems.length} items remaining in queue`);
+}
+
+// Function to handle connectivity changes
+async function handleConnectivityChange(newIsOnline) {
+  const previousState = isOnline;
+  isOnline = newIsOnline;
+
+  console.log(`Connectivity changed: ${previousState} -> ${isOnline}`);
+
+  if (isOnline && !previousState) {
+    console.log('Back online, attempting to sync offline queue');
+    await syncOfflineQueue();
+  }
+}
 
 // Function to send activity to server
 async function sendActivity(type, details) {
-  if (!currentSessionId || !isTrackingEnabled) {
-    console.log('Activity tracking not enabled or no active session');
+  if (!currentSessionId) {
+    console.log('No active session ID available');
+    return;
+  }
+
+  const activity = {
+    sessionId: currentSessionId,
+    type,
+    details,
+    timestamp: new Date().toISOString(),
+    isOfflineSync: !isOnline  // Add flag to indicate if this was recorded offline
+  };
+
+  if (!isOnline) {
+    console.log('Offline: Queueing activity:', activity);
+    offlineQueue.push({ type: 'activity', data: activity });
     return;
   }
 
   try {
-    const payload = {
-      sessionId: currentSessionId,
-      type,
-      details,
-      timestamp: new Date().toISOString()
-    };
-    
-    console.log('Sending activity:', payload);
-    
-    const response = await axios.post(`${SERVER_URL}/api/activity`, payload);
+    console.log('Sending activity:', activity);
+    const response = await axios.post(`${SERVER_URL}/api/activity`, activity);
     console.log('Activity logged successfully:', response.data);
   } catch (error) {
+    console.log('Failed to send activity, queueing:', activity);
+    offlineQueue.push({ type: 'activity', data: activity });
+
     if (error.response) {
-      // Server responded with error
       console.error('Server error logging activity:', {
         status: error.response.status,
-        data: error.response.data,
-        headers: error.response.headers
+        data: error.response.data
       });
     } else if (error.request) {
-      // Request made but no response
       console.error('No response from server:', error.request);
     } else {
-      // Error setting up request
       console.error('Error setting up request:', error.message);
     }
   }
@@ -58,8 +132,8 @@ function startTracking(sessionId) {
   currentSessionId = sessionId;
   console.log('Starting activity tracking for session:', sessionId);
 
-  // Handle keyboard events
-  uIOhook.on('keydown', (event) => {
+  // Create keyboard event handler
+  keydownListener = (event) => {
     // Filter out modifier keys
     if (![
       UiohookKey.Shift,
@@ -70,13 +144,17 @@ function startTracking(sessionId) {
       console.log('Keyboard event:', event);
       sendActivity('keyboard', { keycode: event.keycode });
     }
-  });
+  };
 
-  // Handle mouse events
-  uIOhook.on('mousedown', (event) => {
+  // Create mouse event handler
+  mousedownListener = (event) => {
     console.log('Mouse event:', event);
     sendActivity('mouse', { button: event.button });
-  });
+  };
+
+  // Add event listeners
+  uIOhook.on('keydown', keydownListener);
+  uIOhook.on('mousedown', mousedownListener);
 
   // Start tracking
   try {
@@ -95,10 +173,24 @@ function stopTracking() {
     return;
   }
 
+  console.log('Stopping activity tracking');
+
   try {
+    // Remove event listeners
+    if (keydownListener) {
+      uIOhook.removeListener('keydown', keydownListener);
+      keydownListener = null;
+    }
+    if (mousedownListener) {
+      uIOhook.removeListener('mousedown', mousedownListener);
+      mousedownListener = null;
+    }
+
+    // Stop uIOhook
     uIOhook.stop();
+
+    // Reset tracking state but keep sessionId for offline syncing
     isTrackingEnabled = false;
-    currentSessionId = null;
     console.log('Activity tracking stopped');
   } catch (error) {
     console.error('Failed to stop activity tracking:', error);
@@ -111,9 +203,10 @@ function createWindow() {
     width: 1200,
     height: 800,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      webSecurity: false
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
+      webSecurity: true
     }
   });
 
@@ -154,14 +247,22 @@ function createWindow() {
   });
 }
 
-// IPC handlers for clock-in/out
+// IPC handlers for clock-in/out and connectivity
 ipcMain.handle('clock-in', async (event, sessionId) => {
+  console.log('IPC: Received clock-in request for session:', sessionId);
   startTracking(sessionId);
   return { success: true };
 });
 
 ipcMain.handle('clock-out', async (event) => {
+  console.log('IPC: Received clock-out request');
   stopTracking();
+  return { success: true };
+});
+
+ipcMain.handle('notify-connectivity', async (event, newIsOnline) => {
+  console.log('IPC: Received connectivity update:', newIsOnline);
+  await handleConnectivityChange(newIsOnline);
   return { success: true };
 });
 

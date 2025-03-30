@@ -528,7 +528,7 @@ app.put('/api/settings/:key', async (req, res) => {
 // Activity logging endpoint
 app.post('/api/activity', async (req, res) => {
   try {
-    const { sessionId, type, details, timestamp } = req.body;
+    const { sessionId, type, details, timestamp, isOfflineSync } = req.body;
     
     if (!sessionId || !type) {
       return res.status(400).json({ message: 'sessionId and type are required' });
@@ -539,7 +539,8 @@ app.post('/api/activity', async (req, res) => {
       return res.status(404).json({ message: 'Session not found' });
     }
     
-    if (session.status === 'completed') {
+    // Allow logging to completed sessions if it's an offline sync
+    if (session.status === 'completed' && !isOfflineSync) {
       return res.status(400).json({ message: 'Cannot log activity for completed session' });
     }
     
@@ -550,19 +551,23 @@ app.post('/api/activity', async (req, res) => {
       details: details || null
     });
     
-    // Update session status based on activity
-    if (session.status === 'pending_validation' || session.status === 'inactive') {
-      session.status = 'active';
+    // Only update session status if it's not an offline sync
+    if (!isOfflineSync) {
+      if (session.status === 'pending_validation' || session.status === 'inactive') {
+        session.status = 'active';
+      }
     }
     
     await session.save();
     
-    // Emit session update via WebSocket
-    io.emit('sessionUpdated', {
-      session_id: session._id,
-      user_id: session.user_id,
-      status: session.status
-    });
+    // Only emit WebSocket update if it's not an offline sync
+    if (!isOfflineSync) {
+      io.emit('sessionUpdated', {
+        session_id: session._id,
+        user_id: session.user_id,
+        status: session.status
+      });
+    }
     
     res.status(201).json({
       message: 'Activity logged successfully',

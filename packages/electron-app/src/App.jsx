@@ -12,6 +12,7 @@ const STORAGE_KEYS = {
 
 // Constants
 const DEFAULT_SYNC_INTERVAL = 10000; // 10 seconds in milliseconds
+const SERVER_URL = 'http://localhost:3000';
 
 // Function to format time in HH:MM:SS
 const formatTimeHHMMSS = (seconds) => {
@@ -87,6 +88,9 @@ function TimeTracking() {
   const [serverSyncInterval, setServerSyncInterval] = useState(DEFAULT_SYNC_INTERVAL);
   const [lastSyncTime, setLastSyncTime] = useState(null);
   const [isVerifyingSession, setIsVerifyingSession] = useState(true);
+  const [isConnected, setIsConnected] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState(null);
+  const [isTracking, setIsTracking] = useState(false);
 
   // Load session state and totalShiftTime from localStorage on mount
   useEffect(() => {
@@ -295,44 +299,69 @@ function TimeTracking() {
 
   // WebSocket connection setup
   useEffect(() => {
-    const newSocket = io('http://localhost:3000', {
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      timeout: 20000,
+    const newSocket = io(SERVER_URL, {
       transports: ['websocket', 'polling'],
       withCredentials: true,
     });
 
-    setSocket(newSocket);
-
-    newSocket.on('connect', () => {
-      console.log('Connected to WebSocket server');
+    newSocket.on('connect', async () => {
+      console.log('WebSocket: Connected to server');
+      setIsConnected(true);
       setIsOnline(true);
       newSocket.emit('register', 'user123');
+      
       // Sync offline actions when the WebSocket connects
-      syncOfflineActions();
+      await syncOfflineActions();
+      
+      // Notify main process of online status to trigger activity sync
+      try {
+        await window.electron.notifyConnectivity(true);
+        console.log('IPC: Notified main process of online status');
+      } catch (error) {
+        console.error('Failed to notify online status:', error);
+      }
     });
 
-    newSocket.on('disconnect', () => {
-      console.log('Disconnected from WebSocket server');
+    newSocket.on('disconnect', async () => {
+      console.log('WebSocket: Disconnected from server');
+      setIsConnected(false);
       setIsOnline(false);
+      
+      // Notify main process of offline status
+      try {
+        await window.electron.notifyConnectivity(false);
+        console.log('IPC: Notified main process of offline status');
+      } catch (error) {
+        console.error('Failed to notify offline status:', error);
+      }
     });
 
-    newSocket.on('sessionStarted', (data) => {
-      if (data.user_id === 'user123' && !isClockedIn) {
-        console.log('Received sessionStarted event:', data);
-        const startTime = new Date(data.start_time);
-        setCurrentSessionTime(0);
-        setSessionId(data.session_id);
-        setSessionStartTime(startTime);
-        setIsClockedIn(true);
-        saveSessionState({
-          isClockedIn: true,
-          sessionId: data.session_id,
-          startTime: data.start_time,
-        });
+    newSocket.on('sessionStarted', async (data) => {
+      console.log('WebSocket: Session started', data);
+      const { session_id } = data;
+      setCurrentSessionId(session_id);
+      setIsTracking(true);
+
+      try {
+        // Start activity tracking via IPC
+        const result = await window.electron.clockIn(session_id);
+        console.log('IPC: Clock-in result:', result);
+      } catch (error) {
+        console.error('IPC: Failed to start tracking:', error);
+      }
+    });
+
+    newSocket.on('sessionEnded', async (data) => {
+      console.log('WebSocket: Session ended', data);
+      setCurrentSessionId(null);
+      setIsTracking(false);
+
+      try {
+        // Stop activity tracking via IPC
+        const result = await window.electron.clockOut();
+        console.log('IPC: Clock-out result:', result);
+      } catch (error) {
+        console.error('IPC: Failed to stop tracking:', error);
       }
     });
 
@@ -351,8 +380,14 @@ function TimeTracking() {
       }
     });
 
+    setSocket(newSocket);
+
+    // Cleanup on unmount
     return () => {
-      newSocket.close();
+      if (newSocket) {
+        console.log('WebSocket: Cleaning up connection');
+        newSocket.disconnect();
+      }
     };
   }, [isClockedIn]);
 
@@ -406,6 +441,14 @@ function TimeTracking() {
     try {
       const endTime = new Date();
       const duration = sessionStartTime ? Math.floor((endTime - sessionStartTime) / 1000) : 0;
+
+      // Stop activity tracking first
+      try {
+        await window.electron.clockOut();
+        console.log('IPC: Activity tracking stopped');
+      } catch (error) {
+        console.error('IPC: Failed to stop tracking:', error);
+      }
 
       if (isOnline) {
         const response = await axios.post('http://localhost:3000/api/clock-out', {
