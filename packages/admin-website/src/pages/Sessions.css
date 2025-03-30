@@ -1,0 +1,229 @@
+.filters-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 20px;
+  padding: 20px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.filters-form {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-group label {
+  font-weight: 500;
+  color: #495057;
+}
+
+.date-inputs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.date-inputs input,
+.filter-group input,
+.filter-group select {
+  padding: 8px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.refresh-button {
+  padding: 10px 24px;
+  background-color: #0d6efd;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  margin-left: 20px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 100px;
+}
+
+.refresh-button:hover {
+  background-color: #0b5ed7;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.refresh-button:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.refresh-button:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  opacity: 0.7;
+}
+
+.session-group {
+  margin-bottom: 30px;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.group-header {
+  background-color: #f8f9fa;
+  padding: 15px 20px;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.group-header h3 {
+  margin: 0;
+  color: #343a40;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.group-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.status-badge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.status-badge.active {
+  background-color: #d1e7dd;
+  color: #0f5132;
+}
+
+.status-badge.completed {
+  background-color: #e2e3e5;
+  color: #41464b;
+}
+
+.group-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+  color: #495057;
+  font-size: 0.9rem;
+}
+
+.group-totals span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.table-container {
+  overflow-x: auto;
+  margin: 0 -1px;
+}
+
+.sessions-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 0;
+  min-width: 1200px;
+}
+
+.sessions-table th {
+  background-color: #f8f9fa;
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 2px solid #dee2e6;
+  font-weight: 600;
+  color: #495057;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: background-color 0.2s;
+}
+
+.sessions-table th:hover {
+  background-color: #e9ecef;
+}
+
+.sessions-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #dee2e6;
+  color: #212529;
+  white-space: nowrap;
+}
+
+/* Column-specific widths */
+.sessions-table th:nth-child(1),
+.sessions-table td:nth-child(1),
+.sessions-table th:nth-child(2),
+.sessions-table td:nth-child(2) {
+  min-width: 180px; /* Start Time and End Time columns */
+}
+
+.sessions-table th:nth-child(3),
+.sessions-table td:nth-child(3) {
+  min-width: 100px; /* Duration column */
+}
+
+.sessions-table th:nth-child(4),
+.sessions-table td:nth-child(4) {
+  min-width: 100px; /* Status column */
+}
+
+.sessions-table th:nth-child(5),
+.sessions-table td:nth-child(5),
+.sessions-table th:nth-child(6),
+.sessions-table td:nth-child(6),
+.sessions-table th:nth-child(7),
+.sessions-table td:nth-child(7) {
+  min-width: 120px; /* Break and Inactive Time columns */
+}
+
+.sessions-table th:nth-child(8),
+.sessions-table td:nth-child(8) {
+  min-width: 120px; /* Payable Hours column */
+}
+
+.sessions-table tr:last-child td {
+  border-bottom: none;
+}
+
+.sessions-table tbody tr:hover {
+  background-color: #f8f9fa;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  font-size: 1.2rem;
+  color: #6c757d;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  margin: 20px 0;
+} 

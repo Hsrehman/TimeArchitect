@@ -1,0 +1,161 @@
+:root {
+  --primary-color: #3498db;
+  --primary-dark: #2980b9;
+  --nav-bg: #2c3e50;
+  --nav-hover: #34495e;
+  --text-primary: #2c3e50;
+  --text-secondary: #666;
+  --bg-light: #f5f5f5;
+  --bg-white: #ffffff;
+  --border-color: #ddd;
+  --success-color: #2ecc71;
+  --error-color: #e74c3c;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg-light);
+  color: var(--text-primary);
+}
+
+.admin-app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-nav {
+  background-color: var(--nav-bg);
+  padding: 1rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.nav-brand {
+  color: white;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.nav-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 2rem;
+}
+
+.nav-links li {
+  margin: 0;
+}
+
+.nav-links a {
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: none;
+  font-weight: 500;
+  padding: 0.5rem 0;
+  transition: color 0.2s;
+}
+
+.nav-links a:hover {
+  color: white;
+}
+
+.nav-links a.active {
+  color: var(--primary-color);
+}
+
+.admin-content {
+  flex: 1;
+  background-color: var(--bg-light);
+  min-height: calc(100vh - 64px);
+}
+
+/* Common Components */
+.content-card {
+  background: var(--bg-white);
+  border-radius: 8px;
+  padding: 2rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+}
+
+/* Form Elements */
+input, select, textarea {
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 1rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+button {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+button:hover:not(:disabled) {
+  background-color: var(--primary-dark);
+}
+
+button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Toast customization */
+.Toastify__toast {
+  border-radius: 8px;
+  font-family: inherit;
+}
+
+.Toastify__toast--success {
+  background-color: var(--success-color);
+}
+
+.Toastify__toast--error {
+  background-color: var(--error-color);
+}
+
+/* Loading state */
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+}
+
+/* Page Headers */
+.page-header {
+  margin-bottom: 2rem;
+}
+
+.page-header h1 {
+  color: var(--text-primary);
+  font-size: 2rem;
+  margin: 0 0 0.5rem 0;
+}
+
+.page-header p {
+  color: var(--text-secondary);
+  margin: 0;
+} 

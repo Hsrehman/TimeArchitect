@@ -1,0 +1,137 @@
+.sessions-page {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.sessions-page h1 {
+  margin-bottom: 2rem;
+  color: #2c3e50;
+  font-size: 2rem;
+}
+
+.filters-form {
+  margin-bottom: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  align-items: flex-end;
+}
+
+.filter-group {
+  flex: 1;
+  min-width: 200px;
+}
+
+.filter-group label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.date-inputs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.date-inputs span {
+  color: var(--text-secondary);
+}
+
+.date-inputs input {
+  flex: 1;
+  min-width: 120px;
+}
+
+.filter-group input,
+.filter-group select {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 1rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.filter-group input:focus,
+.filter-group select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+.table-container {
+  overflow-x: auto;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.sessions-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.sessions-table th,
+.sessions-table td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sessions-table th {
+  background-color: var(--bg-light);
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.sessions-table th:hover {
+  background-color: #e8e8e8;
+}
+
+.sessions-table tbody tr:hover {
+  background-color: var(--bg-light);
+}
+
+.sessions-table td {
+  color: var(--text-secondary);
+}
+
+/* Status styles */
+.sessions-table td:nth-child(5) {
+  text-transform: capitalize;
+}
+
+/* Loading state */
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.status-badge.active {
+  background-color: #2ecc71;
+  color: white;
+}
+
+.status-badge.completed {
+  background-color: #3498db;
+  color: white;
+} 
