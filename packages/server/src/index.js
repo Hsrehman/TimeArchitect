@@ -538,21 +538,81 @@ app.post('/api/activity', async (req, res) => {
     if (!session) {
       return res.status(404).json({ message: 'Session not found' });
     }
+
+    // Debug log for activity events
+    if (type === 'pending_validation') {
+      console.log('Pending Validation Event:', {
+        sessionId,
+        duration: details?.duration,
+        start: details?.start,
+        end: details?.end,
+        isOfflineSync
+      });
+    } else if (type === 'inactivity') {
+      console.log('Inactivity Event:', {
+        sessionId,
+        duration: details?.duration,
+        start: details?.start,
+        end: details?.end,
+        resumed: details?.resumed,
+        isOfflineSync
+      });
+    } else if (type === 'auto_clock_out') {
+      console.log('Auto Clock-out Event:', {
+        sessionId,
+        duration: details?.duration,
+        start: details?.start,
+        end: details?.end
+      });
+    }
     
     // Allow logging to completed sessions if it's an offline sync
     if (session.status === 'completed' && !isOfflineSync) {
       return res.status(400).json({ message: 'Cannot log activity for completed session' });
     }
     
-    // Add activity log
+    // Add activity log with enhanced details
     session.activity_logs.push({
       timestamp: timestamp ? new Date(timestamp) : new Date(),
       type,
       details: details || null
     });
     
-    // Only update session status if it's not an offline sync
-    if (!isOfflineSync) {
+    // Handle specific activity types
+    if (type === 'pending_validation') {
+      const duration = details?.duration || 0;
+      session.pending_validation_time += duration;
+      console.log('Updated pending validation time:', {
+        sessionId,
+        previousTotal: session.pending_validation_time - duration,
+        added: duration,
+        newTotal: session.pending_validation_time
+      });
+    }
+    else if (type === 'inactivity') {
+      const duration = details?.duration || 0;
+      await session.addInactiveTime(duration);
+      session.status = details?.resumed ? 'active' : 'inactive';
+      console.log('Updated inactive time:', {
+        sessionId,
+        duration,
+        newTotal: session.inactive_time,
+        status: session.status,
+        resumed: details?.resumed
+      });
+    }
+    else if (type === 'auto_clock_out') {
+      session.status = 'completed';
+      session.end_time = new Date(details?.end);
+      console.log('Session auto clocked-out:', {
+        sessionId,
+        endTime: session.end_time,
+        totalInactiveTime: session.inactive_time,
+        totalPendingTime: session.pending_validation_time
+      });
+    }
+    // Only update session status if it's not an offline sync and not a special event
+    else if (!isOfflineSync && !['pending_validation', 'inactivity', 'auto_clock_out'].includes(type)) {
       if (session.status === 'pending_validation' || session.status === 'inactive') {
         session.status = 'active';
       }
@@ -560,12 +620,24 @@ app.post('/api/activity', async (req, res) => {
     
     await session.save();
     
+    // Debug log final state
+    console.log('Activity Logged:', {
+      sessionId,
+      type,
+      status: session.status,
+      inactiveTime: session.inactive_time,
+      pendingValidationTime: session.pending_validation_time,
+      totalLogs: session.activity_logs.length
+    });
+    
     // Only emit WebSocket update if it's not an offline sync
     if (!isOfflineSync) {
       io.emit('sessionUpdated', {
         session_id: session._id,
         user_id: session.user_id,
-        status: session.status
+        status: session.status,
+        type,
+        details
       });
     }
     

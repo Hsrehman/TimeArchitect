@@ -336,6 +336,29 @@ function TimeTracking() {
       }
     });
 
+    // Listen for auto clock-out events from main process
+    window.electron.onAutoClockOut(() => {
+      console.log('Received auto-clock-out event from main process');
+      setIsClockedIn(false);
+      setSessionId(null);
+      setSessionStartTime(null);
+      setCurrentSessionTime(0);
+      localStorage.removeItem(STORAGE_KEYS.SESSION);
+      
+      // Update total shift time with last known duration
+      const duration = sessionStartTime ? Math.floor((Date.now() - sessionStartTime) / 1000) : 0;
+      const newTotalShiftTime = totalShiftTime + duration;
+      setTotalShiftTime(newTotalShiftTime);
+      saveTotalShiftTime(newTotalShiftTime);
+      
+      // Show notification to user
+      if ('Notification' in window) {
+        new Notification('Auto Clock-Out', {
+          body: 'You have been automatically clocked out due to inactivity.'
+        });
+      }
+    });
+
     newSocket.on('sessionStarted', async (data) => {
       console.log('WebSocket: Session started', data);
       const { session_id } = data;

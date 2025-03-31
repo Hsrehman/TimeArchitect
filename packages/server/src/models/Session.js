@@ -33,7 +33,7 @@ const activityLogSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['keyboard', 'mouse', 'window_switch', 'browser'],
+    enum: ['keyboard', 'mouse', 'window_switch', 'browser', 'inactivity', 'pending_validation', 'auto_clock_out'],
     required: true,
   },
   details: {

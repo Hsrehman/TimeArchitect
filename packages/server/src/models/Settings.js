@@ -47,12 +47,12 @@ settingsSchema.statics.initializeDefaults = async function() {
   const defaults = [
     {
       key: 'pendingValidationThreshold',
-      value: 300, // 5 minutes in seconds
+      value: 10, // Changed from 300 to 10 seconds
       description: 'Time of inactivity before session requires validation (in seconds)'
     },
     {
       key: 'inactiveThreshold',
-      value: 900, // 15 minutes in seconds
+      value: 20, // 20 seconds
       description: 'Time of inactivity before session is marked as inactive (in seconds)'
     },
     {
@@ -62,12 +62,12 @@ settingsSchema.statics.initializeDefaults = async function() {
     },
     {
       key: 'autoClockOutDelay',
-      value: 1800, // 30 minutes in seconds
+      value: 40, // 30 minutes in seconds
       description: 'Time to wait before auto clocking out an inactive session (in seconds)'
     },
     {
       key: 'serverSyncInterval',
-      value: 60, // 1 minute in seconds
+      value: 5, // 1 minute in seconds
       description: 'Interval for syncing session data with server (in seconds)'
     },
     {
@@ -84,6 +84,17 @@ settingsSchema.statics.initializeDefaults = async function() {
       { upsert: true }
     );
   }
+
+  // Fetch and log all settings
+  const allSettings = await this.find({}).lean();
+  console.log('\n=== Current Settings ===');
+  allSettings.forEach(setting => {
+    console.log(`${setting.key}:`, {
+      value: setting.value,
+      description: setting.description
+    });
+  });
+  console.log('=====================\n');
 };
 
 const Settings = mongoose.model('Settings', settingsSchema);

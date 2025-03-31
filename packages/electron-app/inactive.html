@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: rgba(30, 30, 30, 0.95);
+      color: white;
+      user-select: none;
+      -webkit-app-region: drag;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      box-sizing: border-box;
+    }
+    #inactive-message {
+      font-size: 16px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    #timer {
+      font-size: 24px;
+      font-weight: bold;
+      color: #ff6b6b;
+      display: block;
+      margin-top: 10px;
+    }
+    .button-container {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    button {
+      -webkit-app-region: no-drag;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    #resume {
+      background-color: #4CAF50;
+      color: white;
+    }
+    #resume:hover {
+      background-color: #45a049;
+    }
+    #break {
+      background-color: #2196F3;
+      color: white;
+    }
+    #break:hover {
+      background-color: #1e88e5;
+    }
+  </style>
+</head>
+<body>
+  <div id="inactive-message">
+    You have been inactive for:
+    <span id="timer">00:00</span>
+  </div>
+  <div class="button-container">
+    <button id="resume">Resume Working</button>
+    <button id="break">Take a Break</button>
+  </div>
+  <script>
+    let startTime, threshold;
+    let updateTimerInterval;
+
+    window.electron.onStartInactiveTimer((data) => {
+      startTime = new Date(data.startTime).getTime();
+      threshold = data.threshold;
+      updateTimer();
+      updateTimerInterval = setInterval(updateTimer, 1000);
+    });
+
+    function updateTimer() {
+      const now = Date.now();
+      const elapsed = Math.floor((now - startTime) / 1000);
+      const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+      const seconds = (elapsed % 60).toString().padStart(2, '0');
+      document.getElementById('timer').textContent = `${minutes}:${seconds}`;
+    }
+
+    document.getElementById('resume').addEventListener('click', () => {
+      clearInterval(updateTimerInterval);
+      window.electron.resumeFromInactive();
+    });
+
+    document.getElementById('break').addEventListener('click', () => {
+      clearInterval(updateTimerInterval);
+      window.electron.takeBreak();
+    });
+  </script>
+</body>
+</html> 
