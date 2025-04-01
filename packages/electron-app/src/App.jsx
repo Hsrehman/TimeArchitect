@@ -2,6 +2,20 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 
+// CSS styles
+const styles = {
+  autoClockOutMessage: {
+    padding: '8px 12px',
+    margin: '10px 0',
+    backgroundColor: '#ffdddd',
+    color: '#d32f2f',
+    borderRadius: '4px',
+    textAlign: 'center',
+    fontWeight: 'bold',
+    border: '1px solid #f5c6cb'
+  }
+};
+
 // Local storage keys
 const STORAGE_KEYS = {
   SESSION: 'timeArchitect_session',
@@ -91,6 +105,7 @@ function TimeTracking() {
   const [isConnected, setIsConnected] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [isTracking, setIsTracking] = useState(false);
+  const [autoClockOutInfo, setAutoClockOutInfo] = useState({ showed: false, time: '' });
 
   // Load session state and totalShiftTime from localStorage on mount
   useEffect(() => {
@@ -143,7 +158,7 @@ function TimeTracking() {
     const fetchSyncInterval = async () => {
       try {
         const response = await axios.get('http://localhost:3000/api/settings/serverSyncInterval');
-        setServerSyncInterval(response.data.value * 1000 || DEFAULT_SYNC_INTERVAL); // Convert to ms
+        setServerSyncInterval(response.data.value || DEFAULT_SYNC_INTERVAL); // Don't multiply again, server already returns milliseconds
       } catch (error) {
         console.error('Failed to fetch sync interval:', error);
         setServerSyncInterval(DEFAULT_SYNC_INTERVAL);
@@ -276,6 +291,7 @@ function TimeTracking() {
               user_id: action.userId,
               duration: action.duration,
               endTime: action.endTime,
+              completion_reason: action.completion_reason || 'manual'
             })
           );
         }
@@ -290,11 +306,16 @@ function TimeTracking() {
     }
 
     // Reconcile totalShiftTime with the server
-    const serverTotalShiftTime = await fetchTotalShiftTime();
-    const localTotalShiftTime = parseInt(localStorage.getItem(STORAGE_KEYS.TOTAL_SHIFT_TIME) || '0', 10);
-    const reconciledTotalShiftTime = Math.max(serverTotalShiftTime, localTotalShiftTime);
-    setTotalShiftTime(reconciledTotalShiftTime);
-    saveTotalShiftTime(reconciledTotalShiftTime);
+    try {
+      const serverTotalShiftTime = await fetchTotalShiftTime();
+      const localTotalShiftTime = parseInt(localStorage.getItem(STORAGE_KEYS.TOTAL_SHIFT_TIME) || '0', 10);
+      const reconciledTotalShiftTime = Math.max(serverTotalShiftTime, localTotalShiftTime);
+      setTotalShiftTime(reconciledTotalShiftTime);
+      saveTotalShiftTime(reconciledTotalShiftTime);
+      console.log('Reconciled total shift time:', reconciledTotalShiftTime);
+    } catch (error) {
+      console.error('Failed to reconcile total shift time:', error);
+    }
   };
 
   // WebSocket connection setup
@@ -337,26 +358,57 @@ function TimeTracking() {
     });
 
     // Listen for auto clock-out events from main process
-    window.electron.onAutoClockOut(() => {
+    window.electron.onAutoClockOut(async () => {
       console.log('Received auto-clock-out event from main process');
+      
+      // Calculate duration BEFORE resetting any state
+      const endTime = new Date();
+      const sessionDuration = sessionStartTime ? Math.floor((endTime - sessionStartTime) / 1000) : 0;
+      console.log('Auto clock-out - Session duration:', sessionDuration);
+      console.log('Auto clock-out - Current total shift time:', totalShiftTime);
+      
+      // FIRST update total shift time
+      const newTotalShiftTime = totalShiftTime + sessionDuration;
+      console.log('Auto clock-out - New total shift time:', newTotalShiftTime);
+      setTotalShiftTime(newTotalShiftTime);
+      saveTotalShiftTime(newTotalShiftTime);
+      
+      // Update state to show clock-out message
+      setAutoClockOutInfo({
+        showed: true,
+        time: endTime.toLocaleTimeString()
+      });
+      
+      if (isOnline) {
+        try {
+          // Server will handle the auto clock-out
+          const serverTotalTime = await fetchTotalShiftTime();
+          setTotalShiftTime(Math.max(serverTotalTime, newTotalShiftTime));
+          saveTotalShiftTime(Math.max(serverTotalTime, newTotalShiftTime));
+        } catch (error) {
+          console.error('Failed to fetch total shift time after auto clock-out:', error);
+          // Keep the local calculation we did above
+        }
+      } else {
+        // Store for syncing when back online
+        const offlineActions = JSON.parse(localStorage.getItem(STORAGE_KEYS.OFFLINE_ACTIONS) || '[]');
+        offlineActions.push({
+          type: 'clockOut',
+          userId: 'user123',
+          timestamp: endTime,
+          duration: sessionDuration,
+          endTime: endTime.toISOString(),
+          completion_reason: 'auto_clock_out'
+        });
+        localStorage.setItem(STORAGE_KEYS.OFFLINE_ACTIONS, JSON.stringify(offlineActions));
+      }
+      
+      // FINALLY reset session state
       setIsClockedIn(false);
       setSessionId(null);
       setSessionStartTime(null);
       setCurrentSessionTime(0);
       localStorage.removeItem(STORAGE_KEYS.SESSION);
-      
-      // Update total shift time with last known duration
-      const duration = sessionStartTime ? Math.floor((Date.now() - sessionStartTime) / 1000) : 0;
-      const newTotalShiftTime = totalShiftTime + duration;
-      setTotalShiftTime(newTotalShiftTime);
-      saveTotalShiftTime(newTotalShiftTime);
-      
-      // Show notification to user
-      if ('Notification' in window) {
-        new Notification('Auto Clock-Out', {
-          body: 'You have been automatically clocked out due to inactivity.'
-        });
-      }
     });
 
     newSocket.on('sessionStarted', async (data) => {
@@ -412,6 +464,13 @@ function TimeTracking() {
         newSocket.disconnect();
       }
     };
+  }, [isClockedIn]);
+
+  // Clear auto clock-out message when clocking in
+  useEffect(() => {
+    if (isClockedIn && autoClockOutInfo.showed) {
+      setAutoClockOutInfo({ showed: false, time: '' });
+    }
   }, [isClockedIn]);
 
   const handleClockIn = async () => {
@@ -526,6 +585,11 @@ function TimeTracking() {
         <div className="connection-status">
           {!isOnline && <span className="offline-badge">Offline Mode</span>}
           {isVerifyingSession && <span className="verification-badge">Verifying Session...</span>}
+          {autoClockOutInfo.showed && 
+            <div className="auto-clock-out-message" style={styles.autoClockOutMessage}>
+              You were automatically clocked out at {autoClockOutInfo.time} due to inactivity
+            </div>
+          }
         </div>
         <div className="time-displays">
           <div className="time-card">

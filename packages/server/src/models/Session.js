@@ -61,6 +61,11 @@ const sessionSchema = new mongoose.Schema({
     enum: ['active', 'pending_validation', 'inactive', 'completed'],
     default: 'active',
   },
+  completion_reason: {
+    type: String,
+    enum: ['manual', 'auto_clock_out'],
+    default: 'manual'
+  },
   breaks: {
     type: [breakSchema],
     default: [],
@@ -72,6 +77,18 @@ const sessionSchema = new mongoose.Schema({
   inactive_time: {
     type: Number,
     default: 0, // in seconds
+  },
+  inactivity_instances: {
+    type: [{
+      start_time: Date,
+      end_time: Date,
+      duration: Number,
+      type: {
+        type: String,
+        enum: ['pending_validation', 'inactive']
+      }
+    }],
+    default: []
   },
   last_synced_duration: {
     type: Number,

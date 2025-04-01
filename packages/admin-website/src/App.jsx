@@ -4,11 +4,12 @@ import { ToastContainer } from 'react-toastify';
 import Home from './pages/Home';
 import Sessions from './pages/Sessions';
 import Settings from './pages/Settings';
+import SessionTimeline from './pages/SessionTimeline';
 import 'react-toastify/dist/ReactToastify.css';
-import './styles/index.css';
+import './index.css';
 import './styles/sessions.css';
 import './styles/settings.css';
-import './styles/home.css';
+import './styles/timeline.css';
 
 function App() {
   return (
@@ -38,6 +39,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/sessions" element={<Sessions />} />
+            <Route path="/sessions/:sessionId/timeline" element={<SessionTimeline />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>

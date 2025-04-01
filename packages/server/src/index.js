@@ -6,6 +6,7 @@ const { Server } = require('socket.io');
 require('dotenv').config();
 const Session = require('./models/Session');
 const Settings = require('./models/Settings');
+const { groupActivities } = require('./utils/activityGrouper');
 
 const app = express();
 const httpServer = createServer(app);
@@ -165,12 +166,13 @@ app.get('/api/sessions', async (req, res) => {
         };
       }
 
-      // Include activity_logs in session data
+      // Include activity_logs and completion_reason in session data
       acc[key].sessions.push({
         _id: session._id,
         start_time: session.start_time,
         end_time: session.end_time,
         status: session.status,
+        completion_reason: session.completion_reason,
         duration: session.duration,
         work_time: session.work_time,
         breaks: session.breaks,
@@ -180,7 +182,8 @@ app.get('/api/sessions', async (req, res) => {
         inactive_time: session.inactive_time || 0,
         pending_validation_time: session.pending_validation_time || 0,
         payable_hours: session.payable_hours || 0,
-        activity_logs: session.activity_logs || []
+        activity_logs: session.activity_logs || [],
+        inactivity_instances: session.inactivity_instances || []
       });
 
       // Update totals
@@ -245,7 +248,7 @@ app.post('/api/clock-in', async (req, res) => {
 // Clock Out endpoint
 app.post('/api/clock-out', async (req, res) => {
   try {
-    const { user_id, duration, endTime } = req.body;
+    const { user_id, duration, endTime, completion_reason } = req.body;
 
     if (!user_id) {
       return res.status(400).json({ message: 'user_id is required' });
@@ -264,6 +267,7 @@ app.post('/api/clock-out', async (req, res) => {
     // Use the client-provided endTime if available, otherwise use server time
     activeSession.end_time = endTime ? new Date(endTime) : new Date();
     activeSession.status = 'completed';
+    activeSession.completion_reason = completion_reason || 'manual';
     await activeSession.save();
 
     await emitTotalShiftTimeUpdate(user_id);
@@ -278,6 +282,7 @@ app.post('/api/clock-out', async (req, res) => {
     res.status(500).json({ message: 'Failed to end session', error: error.message });
   }
 });
+
 // Start Break endpoint
 app.post('/api/break-start', async (req, res) => {
   try {
@@ -582,6 +587,15 @@ app.post('/api/activity', async (req, res) => {
     if (type === 'pending_validation') {
       const duration = details?.duration || 0;
       session.pending_validation_time += duration;
+      
+      // Add to inactivity instances
+      session.inactivity_instances.push({
+        start_time: new Date(details?.start),
+        end_time: new Date(details?.end),
+        duration: duration,
+        type: 'pending_validation'
+      });
+      
       console.log('Updated pending validation time:', {
         sessionId,
         previousTotal: session.pending_validation_time - duration,
@@ -592,7 +606,22 @@ app.post('/api/activity', async (req, res) => {
     else if (type === 'inactivity') {
       const duration = details?.duration || 0;
       await session.addInactiveTime(duration);
-      session.status = details?.resumed ? 'active' : 'inactive';
+      
+      // Add to inactivity instances if not resumed
+      if (!details?.resumed) {
+        session.inactivity_instances.push({
+          start_time: new Date(details?.start),
+          end_time: new Date(details?.end),
+          duration: duration,
+          type: 'inactive'
+        });
+      }
+      
+      // Only update status if session is not already completed
+      if (session.status !== 'completed') {
+        session.status = details?.resumed ? 'active' : 'inactive';
+      }
+      
       console.log('Updated inactive time:', {
         sessionId,
         duration,
@@ -603,6 +632,7 @@ app.post('/api/activity', async (req, res) => {
     }
     else if (type === 'auto_clock_out') {
       session.status = 'completed';
+      session.completion_reason = 'auto_clock_out';
       session.end_time = new Date(details?.end);
       console.log('Session auto clocked-out:', {
         sessionId,
@@ -627,7 +657,8 @@ app.post('/api/activity', async (req, res) => {
       status: session.status,
       inactiveTime: session.inactive_time,
       pendingValidationTime: session.pending_validation_time,
-      totalLogs: session.activity_logs.length
+      totalLogs: session.activity_logs.length,
+      inactivityInstances: session.inactivity_instances.length
     });
     
     // Only emit WebSocket update if it's not an offline sync
@@ -733,6 +764,80 @@ app.get('/api/session/:id', async (req, res) => {
   } catch (error) {
     console.error('Error fetching session:', error);
     res.status(500).json({ message: 'Failed to fetch session' });
+  }
+});
+
+// Get individual session details
+app.get('/api/sessions/:sessionId', async (req, res) => {
+  try {
+    const session = await Session.findById(req.params.sessionId);
+    
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+
+    // Format the response to include all necessary details
+    const sessionDetails = {
+      _id: session._id,
+      user_id: session.user_id,
+      start_time: session.start_time,
+      end_time: session.end_time,
+      status: session.status,
+      completion_reason: session.completion_reason,
+      duration: session.duration,
+      work_time: session.work_time,
+      breaks: session.breaks,
+      normal_break_duration: session.normal_break_duration || 0,
+      office_break_duration: session.office_break_duration || 0,
+      total_break_duration: session.total_break_duration || 0,
+      inactive_time: session.inactive_time || 0,
+      pending_validation_time: session.pending_validation_time || 0,
+      payable_hours: session.payable_hours || 0,
+      // Only send grouped activities initially
+      timeline: groupActivities(session.activity_logs),
+      inactivity_instances: session.inactivity_instances || []
+    };
+
+    res.json(sessionDetails);
+  } catch (error) {
+    console.error('Error fetching session details:', error);
+    res.status(500).json({ message: 'Failed to fetch session details', error: error.message });
+  }
+});
+
+// Get detailed activities for a specific time group
+app.get('/api/sessions/:sessionId/activities/:groupId', async (req, res) => {
+  try {
+    const { sessionId, groupId } = req.params;
+    const session = await Session.findById(sessionId);
+    
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+
+    // Parse the group ID to get start and end times
+    const [startTimeStr, endTimeStr] = groupId.split('_');
+    const startTime = new Date(startTimeStr);
+    const endTime = new Date(endTimeStr);
+
+    // Filter activities within the time range
+    const activities = session.activity_logs.filter(activity => {
+      const timestamp = new Date(activity.timestamp);
+      return timestamp >= startTime && timestamp <= endTime;
+    });
+
+    // Sort activities by timestamp
+    activities.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    res.json({
+      groupId,
+      startTime,
+      endTime,
+      activities
+    });
+  } catch (error) {
+    console.error('Error fetching activity details:', error);
+    res.status(500).json({ message: 'Failed to fetch activity details', error: error.message });
   }
 });
 
